@@ -1,0 +1,95 @@
+server
+
+
+import socket
+import threading
+
+clients = []
+client_times = []
+
+def handle_client(conn, addr):
+    print(f"Connected to client {addr}")
+
+    # Receive client's clock time
+    data = conn.recv(1024).decode()
+    client_time = float(data)
+    client_times.append((conn, client_time))
+
+def berkeley_algorithm(server_time, client_times):
+    all_times = [server_time] + [t[1] for t in client_times]
+    average_time = sum(all_times) / len(all_times)
+    return average_time
+
+def main():
+    server_time = float(input("Enter server time (in seconds): "))
+    host = '127.0.0.1'
+    port = 12345
+
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind((host, port))
+    server_socket.listen(5)
+
+    print(f"Master server running on {host}:{port}")
+    num_clients = int(input("Enter number of clients: "))
+
+    while len(clients) < num_clients:
+        conn, addr = server_socket.accept()
+        clients.append(conn)
+        threading.Thread(target=handle_client, args=(conn, addr)).start()
+
+    while len(client_times) < num_clients:
+        pass
+
+    # Calculate final average time
+    final_time = berkeley_algorithm(server_time, client_times)
+    print("\n=== Clock Synchronization Details ===")
+    print(f"Calculated Average Time: {final_time} seconds\n")
+
+    # Adjustment for Master
+    master_adjustment = final_time - server_time
+    master_new_time = server_time + master_adjustment
+    print(f"Master - Old Time: {server_time}, Adjustment: {master_adjustment}, New Time: {master_new_time}\n")
+
+    # Send adjustments to clients
+    for idx, (conn, client_time) in enumerate(client_times, start=1):
+        client_adjustment = final_time - client_time
+        client_new_time = client_time + client_adjustment
+        print(f"Client {idx} - Old Time: {client_time}, Adjustment: {client_adjustment}, New Time: {client_new_time}")
+        conn.send(str(client_adjustment).encode())
+        conn.close()
+
+    print("\nSynchronization complete.")
+    server_socket.close()
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+client
+
+import socket
+
+def main():
+    client_time = float(input("Enter client clock time (in seconds): "))
+    host = '127.0.0.1'
+    port = 12345
+
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((host, port))
+
+    client_socket.send(str(client_time).encode())
+
+    data = client_socket.recv(1024).decode()
+    adjustment = float(data)
+    
+    print(f"\nReceived Adjustment: {adjustment} seconds")
+
+    new_time = client_time + adjustment
+    print(f"Client - Old Time: {client_time}, New Time after adjustment: {new_time}")
+
+    client_socket.close()
+
+if __name__ == "__main__":
+    main()
